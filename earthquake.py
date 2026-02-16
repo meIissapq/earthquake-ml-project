@@ -32,13 +32,13 @@ cols = ["month_date", "latitude", "longitude", "magnitude", "depth", "sig", "mmi
 df_clean = df[cols].copy()
 
 # Export file
-out_file = "earthquakes_clean_monthly.csv"
+out_file = "data/processed/earthquakes_clean_monthly.csv"
 df_clean.to_csv(out_file, index=False)
 
 print("Saved:", out_file)
 
 # Load clean file (assuming 'earthquakes_clean_monthly.csv' exists from Week 1 Step 1)
-df_clean = pd.read_csv("earthquakes_clean_monthly.csv")
+df_clean = pd.read_csv("data/processed/earthquakes_clean_monthly.csv")
 
 # Ensure month_date is datetime
 df_clean["month_date"] = pd.to_datetime(df_clean["month_date"])
@@ -126,7 +126,7 @@ step4_features = pd.DataFrame(feature_rows)
 step4_features = step4_features.fillna(0) #clean features creation stage
 
 # Save with underscores in cell_id
-step4_features.to_csv("step4_past_features.csv", index=False)
+step4_features.to_csv("data/processed/step4_past_features.csv", index=False)
 print("step4_past_features.csv created successfully.")
 
 # --- Code from Week 1 Step 2,3 and Week 1 Steps 5,6,7  ---
@@ -179,14 +179,14 @@ df_my['Year'] = df_my['month_date'].dt.year
 df_my['Month'] = df_my['month_date'].dt.month
 
 ml_cell_month_dataset = create_ml_ready_labels(df_my, threshold=7.0)
-ml_cell_month_dataset.to_csv('ml_cell_month_dataset.csv', index=False)
+ml_cell_month_dataset.to_csv("data/processed/ml_cell_month_dataset.csv", index=False)
 print("ml_cell_month_dataset.csv created successfully.")
 
 # --- Code from Week 2 Job 1 (cmJkhz4E7kvC, copied to 5df2144f) to create ml_final_dataset.csv ---
 
 # load both files
-features = pd.read_csv("step4_past_features.csv", parse_dates = ["month_date"])
-labels = pd.read_csv("ml_cell_month_dataset.csv")
+features = pd.read_csv("data/processed/step4_past_features.csv", parse_dates = ["month_date"])
+labels = pd.read_csv("data/processed/ml_cell_month_dataset.csv")
 
 
 # converting labels month date format to match features
@@ -207,16 +207,16 @@ feature_col_final = final_df.columns.difference(["cell_id", "month_date", "y_pro
 final_df[feature_col_final] = final_df[feature_col_final].fillna(0) # clean after merge with labels
 
 # saving final ML dataset
-final_df.to_csv("ml_final_dataset.csv", index = False)
+final_df.to_csv("data/processed/ml_final_dataset.csv", index = False)
 
-shutil.copy("ml_final_dataset.csv", "ml_final_dataset_v2.csv")
+shutil.copy("data/processed/ml_final_dataset.csv", "data/processed/ml_final_dataset_v2.csv")
 print("Copied ml_final_dataset.csv -> ml_final_dataset_v2.csv (optional backup)")
 
 
 
 #----Week 2 Job 2----
 # 1. Load the ml_final_dataset.csv file
-ml_data = pd.read_csv("ml_final_dataset.csv", parse_dates=["month_date"])
+ml_data = pd.read_csv("data/processed/ml_final_dataset.csv", parse_dates=["month_date"])
 print(ml_data.columns) #cb
 
 # 2. Define the list of feature columns
@@ -270,7 +270,7 @@ model_rf.fit(X_train, Y_train)
 #----Week 2 Job 3----
 
 # 1. Load the ml_final_dataset.csv file
-df = pd.read_csv("ml_final_dataset_v2.csv", parse_dates=["month_date"])
+df = pd.read_csv("data/processed/ml_final_dataset_v2.csv", parse_dates=["month_date"])
 
 # 2. Filter out invalid classes
 df = df[df["y_class"] != -1].copy()
@@ -320,15 +320,15 @@ print("\nConfusion Matrix:")
 print(cm)
 
 # Save model and feature info
-joblib.dump(model, "magnitude_class_model.pkl")
+joblib.dump(model, "models/magnitude_class_model.pkl")
 feature_info = {
     'feature_col': feature_col,
     'class_mapping': {0: "6.0–6.9", 1: "7.0–7.9", 2: "8.0+"}
 }
-joblib.dump(feature_info, "magnitude_model_info.pkl")
+joblib.dump(feature_info, "models/magnitude_model_info.pkl")
 
-magnitude_model = joblib.load("magnitude_class_model.pkl")
-magnitude_model_info = joblib.load("magnitude_model_info.pkl")
+magnitude_model = joblib.load("models/magnitude_class_model.pkl")
+magnitude_model_info = joblib.load("models/magnitude_model_info.pkl")
 
 feature_columns_mag_model = magnitude_model_info["feature_col"]
 
@@ -384,10 +384,10 @@ else:
 predictions_df = latest_month_data[['cell_id', 'month_date', 'risk_prob', 'predicted_quake', 'predicted_class']].copy()
 
 # 2. Save the predictions_df DataFrame to a CSV file
-predictions_df.to_csv('predictions_latest_month.csv', index=False)
+predictions_df.to_csv('outputs/predictions_latest_month.csv', index=False)
 
 # 1. Load the 'predictions_latest_month.csv' file into a pandas DataFrame.
-predictions_df = pd.read_csv('predictions_latest_month.csv')
+predictions_df = pd.read_csv('outputs/predictions_latest_month.csv')
 
 # 2. Sort this DataFrame by the 'risk_prob' column in descending order.
 sorted_predictions = predictions_df.sort_values(by='risk_prob', ascending=False)
@@ -434,7 +434,7 @@ results_df
 
 #----Week 3 Job 3----
 # load dataset
-ml_data = pd.read_csv("ml_final_dataset.csv")
+ml_data = pd.read_csv("data/processed/ml_final_dataset.csv")
 
 # keep rows with valid magnitude classes
 df_class = ml_data[ml_data["y_class"] != -1].copy()
@@ -471,7 +471,7 @@ print(classification_report(y, y_pred, digits=3))
 print(f1_score(y, y_pred, average=None))
 
 # save updated model
-joblib.dump(mag_model_v2, "magnitude_class_model_v2.pkl")
+joblib.dump(mag_model_v2, "models/magnitude_class_model_v2.pkl")
 
 mag_model_info_v2 = {
     "feature_col": feature_cols,
@@ -482,7 +482,7 @@ mag_model_info_v2 = {
     "model_type": "2-class RandomForest"
 }
 
-joblib.dump(mag_model_info_v2, "magnitude_model_info_v2.pkl")
+joblib.dump(mag_model_info_v2, "models/magnitude_model_info_v2.pkl")
 
 
 #----Week 3 Job 4----
