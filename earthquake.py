@@ -380,23 +380,44 @@ if not high_risk_cells.empty:
 else:
     print("No high-risk cells (predicted_quake = 1) found for magnitude class prediction.")
 
+# updating 
+# Build predictions dataframe with required columns
+predictions_df = latest_month_data[['cell_id', 'risk_prob', 'predicted_class']].copy()
 
-predictions_df = latest_month_data[['cell_id', 'month_date', 'risk_prob', 'predicted_quake', 'predicted_class']].copy()
+# Split cell_id into grid_lat and grid_lon
+predictions_df[['grid_lat', 'grid_lon']] = predictions_df['cell_id'].str.split('_', expand=True)
 
-# 2. Save the predictions_df DataFrame to a CSV file
+predictions_df['grid_lat'] = predictions_df['grid_lat'].astype(float)
+predictions_df['grid_lon'] = predictions_df['grid_lon'].astype(float)
+
+# Reorder columns to match PDF requirement
+predictions_df = predictions_df[['grid_lat', 'grid_lon', 'risk_prob', 'predicted_class']]
+
+# Save
 predictions_df.to_csv('outputs/predictions_latest_month.csv', index=False)
 
+# overrode next 405-420 lines
+# Note:
+# Replaced previous predictions_df creation to comply with PDF submission format.
+# The required columns are: grid_lat, grid_lon, risk_prob, predicted_class.
+# Older logic included extra columns and did not match the required schema.
+
+# predictions_df = latest_month_data[['cell_id', 'month_date', 'risk_prob', 'predicted_quake', 'predicted_class']].copy()
+
+# 2. Save the predictions_df DataFrame to a CSV file
+# predictions_df.to_csv('outputs/predictions_latest_month.csv', index=False)
+
 # 1. Load the 'predictions_latest_month.csv' file into a pandas DataFrame.
-predictions_df = pd.read_csv('outputs/predictions_latest_month.csv')
+# predictions_df = pd.read_csv('outputs/predictions_latest_month.csv')
 
 # 2. Sort this DataFrame by the 'risk_prob' column in descending order.
-sorted_predictions = predictions_df.sort_values(by='risk_prob', ascending=False)
+# sorted_predictions = predictions_df.sort_values(by='risk_prob', ascending=False)
 
 # 3. Display the 'cell_id' and 'risk_prob' columns for the top 10 rows of the sorted DataFrame.
-top_10_risk_cells = sorted_predictions.head(10)[['cell_id', 'risk_prob']]
+# top_10_risk_cells = sorted_predictions.head(10)[['cell_id', 'risk_prob']]
 
-print("Top 10 cells with the highest risk probability:")
-print(top_10_risk_cells)
+#print("Top 10 cells with the highest risk probability:")
+#print("top_10_risk_cells")
 
 
 #----Week 3 Job 2----
