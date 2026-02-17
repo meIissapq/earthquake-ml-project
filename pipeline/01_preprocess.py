@@ -9,33 +9,24 @@ PROCESSED_DIR = DATA_DIR / "processed"
 PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 
 def main():
-    src = RAW_DIR / "earthquake_data_tsunami.csv"
     dst = PROCESSED_DIR / "earthquakes_clean_monthly.csv"
 
-    df = pd.read_csv(src)
+    df = pd.read_csv(RAW_DIR / "earthquake_data_tsunami.csv")
 
-    # build month_date from Year + Month
-    df["Year"] = pd.to_numeric(df["Year"], errors="coerce")
-    df["Month"] = pd.to_numeric(df["Month"], errors="coerce")
+    # Build month_date from Year + Month
+    df['month_date'] =  pd.to_datetime(df["Year"].astype(str) + "-" + df["Month"].astype(str) + "-01")
 
-    df = df.dropna(subset=["Year", "Month", "latitude", "longitude", "magnitude"])
+    # Keep only needed columns
+    cols = ["month_date", "latitude", "longitude", "magnitude", "depth", "sig", "mmi", "cdi"]
+    df_clean = df[cols].copy()
 
-    df["Year"] = df["Year"].astype(int)
-    df["Month"] = df["Month"].astype(int)
+    # Sort
+    df_clean = df_clean.sort_values("month_date").reset_index(drop=True)
 
-    df["month_date"] = pd.to_datetime({
-        "year": df["Year"],
-        "month": df["Month"],
-        "day": 1
-    }, errors="coerce")
-
-    df = df.dropna(subset=["month_date"])
-    df = df.sort_values("month_date").reset_index(drop=True)
-
-    df.to_csv(dst, index=False)
+    df_clean.to_csv(dst, index=False)
 
     print(f"Saved: {dst}")
-    print(f"Rows: {len(df)}, Cols: {len(df.columns)}")
+    print(f"Rows: {len(df_clean)}, Cols: {len(df_clean.columns)}")
 
 if __name__ == "__main__":
     main()

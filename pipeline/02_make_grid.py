@@ -8,21 +8,31 @@ PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 
 BIN = 0.5
 
+
 def main():
-    src = PROCESSED_DIR / "earthquakes_clean_monthly.csv"
-    dst = PROCESSED_DIR / "earthquakes_with_cells.csv"
+   src = PROCESSED_DIR / "earthquakes_clean_monthly.csv"
+   dst = PROCESSED_DIR / "earthquakes_with_cells.csv"
 
-    df = pd.read_csv(src, parse_dates=["month_date"])
+   # Load clean file (assuming 'earthquakes_clean_monthly.csv' exists from Week 1 Step 1)
+   df_clean = pd.read_csv(src)
 
-    df["grid_lat"] = np.floor(df["latitude"] / BIN) * BIN
-    df["grid_lon"] = np.floor(df["longitude"] / BIN) * BIN
-    df["cell_id"] = df["grid_lat"].astype(str) + "_" + df["grid_lon"].astype(str)
+   # Ensure month_date is datetime
+   df_clean["month_date"] = pd.to_datetime(df_clean["month_date"])
 
-    df = df.sort_values(["cell_id", "month_date"]).reset_index(drop=True)
+   # Create grid cell IDs
+   df_clean["grid_lat"] = np.floor(df_clean["latitude"] / BIN) * BIN
+   df_clean["grid_lon"] = np.floor(df_clean["longitude"] / BIN) * BIN
 
-    df.to_csv(dst, index=False)
-    print(f"Saved: {dst}")
-    print(f"Rows: {len(df)}, Cols: {len(df.columns)}")
+   # Use hyphens in cell_id as per PkHBwUMGoii6
+   df_clean["cell_id"] = (df_clean["grid_lat"].astype(str) + "_" + df_clean["grid_lon"].astype(str))
+
+   # Sort for easier processing
+   df_clean = df_clean.sort_values(["cell_id", "month_date"]).reset_index(drop=True)
+   df_clean.to_csv(dst, index=False)
+   print(f"Saved: {dst}")
+   print(f"Rows: {len(df_clean)}, Cols: {len(df_clean.columns)}")
 
 if __name__ == "__main__":
     main()
+
+

@@ -1,36 +1,24 @@
-from pathlib import Path
 import shutil
 import kagglehub
-
-BASE_DIR = Path(__file__).resolve().parents[1]
-DATA_DIR = BASE_DIR / "data"
-RAW_DIR = DATA_DIR / "raw"
-
-RAW_DIR.mkdir(parents=True, exist_ok=True)
+from pathlib import Path
 
 def main():
-    dataset_path = kagglehub.dataset_download(
+    path = kagglehub.dataset_download(
         "ahmeduzaki/global-earthquake-tsunami-risk-assessment-dataset"
     )
+    print("Path to dataset files:", path)
 
-    print(f"Dataset downloaded to: {dataset_path}")
+    DATA_DIR = Path.home() / ".cache/kagglehub/datasets/ahmeduzaki/global-earthquake-tsunami-risk-assessment-dataset/versions/1"
 
-    dataset_path = Path(dataset_path)
-    csv_files = list(dataset_path.rglob("*.csv"))
+    BASE_DIR = Path(__file__).resolve().parents[1]
+    RAW_DIR = BASE_DIR / "data" / "raw"
+    RAW_DIR.mkdir(parents=True, exist_ok=True)
 
-    if not csv_files:
-        raise FileNotFoundError("No CSV file found in downloaded dataset.")
-
-    src = csv_files[0]
+    src = DATA_DIR / "earthquake_data_tsunami.csv"
     dst = RAW_DIR / "earthquake_data_tsunami.csv"
 
     shutil.copy(src, dst)
-
-    print(f"Saved raw file to: {dst}")
+    print("Saved raw file to:", dst)
 
 if __name__ == "__main__":
     main()
-
-
-
-

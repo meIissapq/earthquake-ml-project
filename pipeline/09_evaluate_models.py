@@ -29,7 +29,9 @@ def main():
     y_prob_true = test_df["y_prob"]
 
     y_prob_pred = yprob_model.predict(X_prob)
-    prob_report = classification_report(y_prob_true, y_prob_pred)
+    prob_report = classification_report(y_prob_true, y_prob_pred, zero_division=0)
+
+
 
     (OUTPUTS_DIR / "eval_yprob_report.txt").write_text(prob_report)
 
