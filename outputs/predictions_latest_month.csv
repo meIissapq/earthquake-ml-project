@@ -1,2 +1,2 @@
-cell_id,month_date,risk_prob,predicted_quake,predicted_class
--4.5_-77.0,2021-11-01,0.47852324626497844,1,1
+grid_lat,grid_lon,risk_prob,predicted_class
+-4.5,-77.0,0.47852324626497844,1

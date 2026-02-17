@@ -1,27 +1,28 @@
+import pandas as pd
+import numpy as np
 from pathlib import Path
 
-import shutil
-import kagglehub
-from pathlib import Path
+BASE_DIR = Path(__file__).resolve().parents[1]
+PROCESSED_DIR = BASE_DIR / "data" / "processed"
+PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 
-# (paste the helper header here)
+BIN = 0.5
 
 def main():
-    # Download latest version
-    dataset_path = kagglehub.dataset_download(
-        "ahmeduzaki/global-earthquake-tsunami-risk-assessment-dataset"
-    )
-    print("Dataset downloaded to:", dataset_path)
+    src = PROCESSED_DIR / "earthquakes_clean_monthly.csv"
+    dst = PROCESSED_DIR / "earthquakes_with_cells.csv"
 
-    # Find the raw csv inside the downloaded folder
-    dataset_path = Path(dataset_path)
-    src = dataset_path / "earthquake_data_tsunami.csv"   # (this is what your code reads)
-    if not src.exists():
-        raise FileNotFoundError(f"Could not find {src} inside Kaggle download.")
+    df = pd.read_csv(src, parse_dates=["month_date"])
 
-    dst = RAW_DIR / "earthquake_data_tsunami.csv"
-    shutil.copy(src, dst)
-    print("Raw data copied to:", dst)
+    df["grid_lat"] = np.floor(df["latitude"] / BIN) * BIN
+    df["grid_lon"] = np.floor(df["longitude"] / BIN) * BIN
+    df["cell_id"] = df["grid_lat"].astype(str) + "_" + df["grid_lon"].astype(str)
+
+    df = df.sort_values(["cell_id", "month_date"]).reset_index(drop=True)
+
+    df.to_csv(dst, index=False)
+    print(f"Saved: {dst}")
+    print(f"Rows: {len(df)}, Cols: {len(df.columns)}")
 
 if __name__ == "__main__":
     main()

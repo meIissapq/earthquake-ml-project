@@ -1,25 +1,45 @@
-import shutil
-import kagglehub
+import pandas as pd
 from pathlib import Path
 
-# (paste the helper header here)
+BASE_DIR = Path(__file__).resolve().parents[1]
+PROCESSED_DIR = BASE_DIR / "data" / "processed"
+PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+
+def create_ml_ready_labels(df, threshold=6.0):
+    monthly_data = df.groupby(['cell_id', 'Year', 'Month'])['magnitude'].max().reset_index()
+    monthly_data = monthly_data.sort_values(['cell_id', 'Year', 'Month'])
+    monthly_data['next_month_max_mag'] = monthly_data.groupby('cell_id')['magnitude'].shift(-1)
+    monthly_data['y_prob'] = (monthly_data['next_month_max_mag'] >= threshold).astype(int)
+
+    def assign_class(mag):
+        if pd.isna(mag) or mag < threshold:
+            return -1
+        elif 6.0 <= mag <= 6.9:
+            return 0
+        elif 7.0 <= mag <= 7.9:
+            return 1
+        else:
+            return 2
+
+    monthly_data['y_class'] = monthly_data['next_month_max_mag'].apply(assign_class)
+    final_df_labels = monthly_data.dropna(subset=['next_month_max_mag']).copy()
+    return final_df_labels
 
 def main():
-    # Download latest version
-    dataset_path = kagglehub.dataset_download(
-        "ahmeduzaki/global-earthquake-tsunami-risk-assessment-dataset"
-    )
-    print("Dataset downloaded to:", dataset_path)
+    src = PROCESSED_DIR / "earthquakes_with_cells.csv"
+    dst = PROCESSED_DIR / "ml_cell_month_dataset.csv"
 
-    # Find the raw csv inside the downloaded folder
-    dataset_path = Path(dataset_path)
-    src = dataset_path / "earthquake_data_tsunami.csv"   # (this is what your code reads)
-    if not src.exists():
-        raise FileNotFoundError(f"Could not find {src} inside Kaggle download.")
+    df_my = pd.read_csv(src, parse_dates=["month_date"])
+    df_my["Year"] = df_my["month_date"].dt.year
+    df_my["Month"] = df_my["month_date"].dt.month
 
-    dst = RAW_DIR / "earthquake_data_tsunami.csv"
-    shutil.copy(src, dst)
-    print("Raw data copied to:", dst)
+    ml_cell_month_dataset = create_ml_ready_labels(df_my, threshold=7.0)
+    ml_cell_month_dataset.to_csv(dst, index=False)
+
+    print("ml_cell_month_dataset.csv created successfully.")
+    print(f"Saved: {dst}")
+    print(f"Rows: {len(ml_cell_month_dataset)}, Cols: {len(ml_cell_month_dataset.columns)}")
 
 if __name__ == "__main__":
     main()
+
