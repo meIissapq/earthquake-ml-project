@@ -1,33 +1,50 @@
-# Earthquake Magnitude Classification (ML Project)
+# Earthquake Risk & Depth Visualizer + Predictor
 
-## Overview
-This project builds a machine learning model to classify earthquake magnitudes using historical earthquake data.
+## What This Project Does
 
-The goal is to:
-- Engineer useful temporal and spatial features
-- Train classification models to predict magnitude class
-- Evaluate model performance
-- Generate predictions for the most recent month
+- Downloads and preprocesses historical earthquake data
+- Builds grid-based monthly features and labels
+- Trains Random Forest models for probability prediction and magnitude classification
+- Generates predictions for the latest available month and evaluates performance
 
----
+## Dataset Used
 
-## Project Structure
+Historical earthquake dataset from Kaggle:
 
-earthquake-ml-project/
-│
-├── earthquake.py                 # Main pipeline script
-├── earthquake_backup.py          # Backup version
-│
-├── earthquakes_clean_monthly.csv # Cleaned monthly earthquake data
-├── ml_cell_month_dataset.csv     # Feature engineered dataset
-├── ml_final_dataset.csv          # Final training dataset
-├── ml_final_dataset_v2.csv       # Updated version of dataset
-│
-├── magnitude_class_model.pkl     # Trained classification model
-├── magnitude_class_model_v2.pkl  # Updated model
-├── magnitude_model_info.pkl      # Model metadata
-├── magnitude_model_info_v2.pkl   # Updated metadata
-│
-├── predictions_latest_month.csv  # Model predictions
-│
-└── .gitignore
+https://www.kaggle.com/
+
+(Downloaded programmatically in `00_download_data.py`)
+
+## Real-Time Data Source
+
+IRIS SeedLink (real-time seismic data source):
+
+https://ds.iris.edu/ds/nodes/dmc/services/seedlink/
+
+## Models Used
+
+- **Random Forest (Probability Model)** — predicts earthquake occurrence probability (`y_prob`)
+- **Random Forest (Magnitude Classification Model)** — predicts earthquake magnitude class (`y_class`)
+
+
+## How to Run
+
+# 1) Install Dependencies
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+
+## Outputs
+
+After running the full pipeline, the following files will be generated:
+
+- `outputs/predictions_latest_month.csv`
+- `outputs/eval_yprob_report.txt`
+- `outputs/eval_yclass_report.txt`
+- `outputs/eval_yclass_confusion_matrix.txt`
+
+Note: The prediction file may contain only one row if the latest month in the dataset contains only one grid cell-month entry. This is expected behavior and not an error.
+
