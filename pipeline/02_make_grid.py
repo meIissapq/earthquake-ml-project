@@ -1,38 +1,30 @@
-import pandas as pd
-import numpy as np
+from __future__ import annotations
+
 from pathlib import Path
+import numpy as np
+import pandas as pd
 
-BASE_DIR = Path(__file__).resolve().parents[1]
-PROCESSED_DIR = BASE_DIR / "data" / "processed"
-PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 
+IN_FILE = Path("data/processed/earthquakes_clean_monthly.csv")
+OUT_FILE = Path("data/processed/earthquakes_gridded.csv")
 BIN = 0.5
 
 
-def main():
-   src = PROCESSED_DIR / "earthquakes_clean_monthly.csv"
-   dst = PROCESSED_DIR / "earthquakes_with_cells.csv"
+def main() -> None:
+    if not IN_FILE.exists():
+        raise FileNotFoundError(f"Missing {IN_FILE}. Run 01_preprocess.py first.")
 
-   # Load clean file (assuming 'earthquakes_clean_monthly.csv' exists from Week 1 Step 1)
-   df_clean = pd.read_csv(src)
+    df = pd.read_csv(IN_FILE, parse_dates=["month_date"])
 
-   # Ensure month_date is datetime
-   df_clean["month_date"] = pd.to_datetime(df_clean["month_date"])
+    df["grid_lat"] = np.floor(df["latitude"] / BIN) * BIN
+    df["grid_lon"] = np.floor(df["longitude"] / BIN) * BIN
 
-   # Create grid cell IDs
-   df_clean["grid_lat"] = np.floor(df_clean["latitude"] / BIN) * BIN
-   df_clean["grid_lon"] = np.floor(df_clean["longitude"] / BIN) * BIN
+    # ✅ ONE consistent format everywhere:
+    df["cell_id"] = df["grid_lat"].astype(str) + "_" + df["grid_lon"].astype(str)
 
-   # Use hyphens in cell_id as per PkHBwUMGoii6
-   df_clean["cell_id"] = (df_clean["grid_lat"].astype(str) + "_" + df_clean["grid_lon"].astype(str))
+    df.to_csv(OUT_FILE, index=False)
+    print("Saved:", OUT_FILE, "| rows:", len(df))
 
-   # Sort for easier processing
-   df_clean = df_clean.sort_values(["cell_id", "month_date"]).reset_index(drop=True)
-   df_clean.to_csv(dst, index=False)
-   print(f"Saved: {dst}")
-   print(f"Rows: {len(df_clean)}, Cols: {len(df_clean.columns)}")
 
 if __name__ == "__main__":
     main()
-
-
