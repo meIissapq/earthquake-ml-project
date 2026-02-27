@@ -1,182 +1,191 @@
+from __future__ import annotations
+
+from pathlib import Path
+from datetime import datetime, timezone
 import pandas as pd
-import numpy as np
+import requests
 import plotly.graph_objects as go
-import plotly.express as px
-from datetime import datetime, timedelta
-import joblib
-import os
 
-# --- Part B: Alerts Logic ---
-def generate_alerts(df, threshold=0.5):
-    """
-    Simple rule: If risk_prob >= threshold -> alert.
-    Includes class prediction if available.
-    """
-    print(f"\n--- ACTIVE ALERTS (Threshold >= {threshold}) ---")
-    high_risk = df[df['risk_prob'] >= threshold].copy()
-    
-    if high_risk.empty:
-        print("No high-risk zones detected.")
-        return []
-    
-    alerts = []
-    class_mapping = {0: "6.0–6.9", 1: "7.0–7.9", 2: "8.0+"}
-    
-    for _, row in high_risk.iterrows():
-        msg = f"High earthquake risk next month in cell {row['cell_id']} (Risk={row['risk_prob']:.2f})."
-        if row['predicted_class'] in class_mapping:
-            msg += f" Expected magnitude class: {class_mapping[row['predicted_class']]}."
-        
-        print(msg)
-        alerts.append(msg)
-    
-    print("------------------------------------------\n")
-    return alerts
 
-# --- Part C: Real-time Data Integration (IRIS FDSN) ---
-def fetch_live_quakes():
+PRED_FILE = Path("outputs/predictions_latest_month.csv")
+OUT_HTML = Path("ui/earthquake_dashboard_generated.html")
+
+
+def fetch_live_quakes_usgs(min_mag: float = 4.0) -> pd.DataFrame:
     """
-    Connect to IRIS and pull live events from the last 48 hours.
+    Lightweight live feed (recommended): USGS GeoJSON (last 24 hours).
     """
-    print("Fetching live earthquake data from IRIS...")
+    # Options:
+    #  - 4.5_day.geojson, 2.5_day.geojson, 1.0_day.geojson, etc.
+    url = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/{}.geojson".format(
+        "4.0_day" if min_mag <= 4.0 else "4.5_day"
+    )
+
     try:
-        from obspy.clients.fdsn import Client
-        from obspy import UTCDateTime
-        
-        client = Client("IRIS")
-        # Get events from last 48 hours, magnitude 4.0+
-        starttime = UTCDateTime.now() - 2 * 86400 
-        cat = client.get_events(starttime=starttime, minmagnitude=4.0)
-        
-        live_data = []
-        for event in cat:
-            origin = event.origins[0]
-            mag = event.magnitudes[0].mag
-            live_data.append({
-                "lat": origin.latitude,
-                "lon": origin.longitude,
-                "mag": mag,
-                "time": origin.time.datetime.strftime("%Y-%m-%d %H:%M"),
-                "type": "Live Quake"
-            })
-        
-        df_live = pd.DataFrame(live_data)
-        print(f"Successfully fetched {len(df_live)} live quakes.")
-        return df_live
-    except Exception as e:
-        print(f"Could not connect to IRIS ({e}). Using fallback simulation.")
-        # Fallback simulation
-        return pd.DataFrame([
-            {"lat": 35.6895, "lon": 139.6917, "mag": 4.5, "time": "2026-02-09", "type": "Live Quake"},
-            {"lat": -12.0464, "lon": -77.0428, "mag": 5.2, "time": "2026-02-09", "type": "Live Quake"},
-        ])
+        r = requests.get(url, timeout=10)
+        r.raise_for_status()
+        data = r.json()
 
-# --- Part A: Put predictions on a map ---
-def create_dashboard(predictions_file):
-    if not os.path.exists(predictions_file):
-        print(f"Error: {predictions_file} not found.")
-        return
+        rows = []
+        for f in data.get("features", []):
+            prop = f.get("properties", {})
+            geom = f.get("geometry", {})
+            coords = geom.get("coordinates", [])
+            if len(coords) < 2:
+                continue
 
-    df = pd.read_csv(predictions_file)
-    df[['lat', 'lon']] = df['cell_id'].str.split('_', expand=True).astype(float)
-    
-    # Create the map with a premium look
+            lon, lat = coords[0], coords[1]
+            mag = prop.get("mag")
+            t_ms = prop.get("time")
+
+            t_str = ""
+            if t_ms:
+                t_str = datetime.fromtimestamp(t_ms / 1000, tz=timezone.utc).strftime(
+                    "%Y-%m-%d %H:%M UTC"
+                )
+
+            if mag is None:
+                continue
+            if float(mag) < float(min_mag):
+                continue
+
+            rows.append(
+                {
+                    "lat": float(lat),
+                    "lon": float(lon),
+                    "mag": float(mag),
+                    "time": t_str,
+                    "type": "Live Quake (USGS)",
+                }
+            )
+
+        return pd.DataFrame(rows)
+
+    except Exception:
+        # If the network fails, just return empty (dashboard still renders)
+        return pd.DataFrame(columns=["lat", "lon", "mag", "time", "type"])
+
+
+def parse_cell_id(cell_id: str) -> tuple[float, float]:
+    """
+    cell_id must be 'lat_lon' like '10.0_72.5'
+    """
+    lat_str, lon_str = cell_id.split("_")
+    return float(lat_str), float(lon_str)
+
+
+def class_label(c: int) -> str:
+    mapping = {0: "6.0–6.9", 1: "7.0–7.9", 2: "8.0+"}
+    return mapping.get(int(c), "N/A")
+
+
+def build_map(pred_df: pd.DataFrame, live_df: pd.DataFrame) -> go.Figure:
+    # Ensure numeric
+    pred_df["risk_prob"] = pd.to_numeric(pred_df["risk_prob"], errors="coerce").fillna(0)
+    pred_df["predicted_quake"] = pd.to_numeric(pred_df["predicted_quake"], errors="coerce").fillna(0).astype(int)
+    pred_df["predicted_class"] = pd.to_numeric(pred_df["predicted_class"], errors="coerce").fillna(-1).astype(int)
+
+    # Parse lat/lon from cell_id
+    lats, lons = [], []
+    for cid in pred_df["cell_id"]:
+        la, lo = parse_cell_id(cid)
+        lats.append(la)
+        lons.append(lo)
+    pred_df["lat"] = lats
+    pred_df["lon"] = lons
+
     fig = go.Figure()
 
-    # 1. Prediction Grid (Heatmap-like markers)
-    fig.add_trace(go.Scattermapbox(
-        lat=df['lat'],
-        lon=df['lon'],
-        mode='markers',
-        marker=go.scattermapbox.Marker(
-            size=18,
-            color=df['risk_prob'],
-            colorscale='Viridis', # Professional looking scale
-            opacity=0.7,
-            showscale=True,
-            colorbar=dict(
-                title="Risk Level",
-                thickness=20,
-                x=0.9,
-                tickvals=[0, 0.5, 1],
-                ticktext=["Low", "Medium", "High"]
-            )
-        ),
-        text=df.apply(lambda r: f"<b>Cell:</b> {r['cell_id']}<br><b>Risk:</b> {r['risk_prob']:.2f}<br><b>Class:</b> {r['predicted_class']}", axis=1),
-        hoverinfo='text',
-        name='Predicted Risk Zones'
-    ))
-
-    # 2. Highlight Predicted Quakes
-    high_risk_df = df[df['predicted_quake'] == 1]
-    if not high_risk_df.empty:
-        class_names = {0: "6.0–6.9", 1: "7.0–7.9", 2: "8.0+"}
-        fig.add_trace(go.Scattermapbox(
-            lat=high_risk_df['lat'],
-            lon=high_risk_df['lon'],
-            mode='markers+text',
+    # 1) Prediction risk layer
+    fig.add_trace(
+        go.Scattermapbox(
+            lat=pred_df["lat"],
+            lon=pred_df["lon"],
+            mode="markers",
             marker=go.scattermapbox.Marker(
                 size=14,
-                color='white'
+                color=pred_df["risk_prob"],
+                colorscale="Viridis",
+                opacity=0.75,
+                showscale=True,
+                colorbar=dict(title="Risk", thickness=20, x=0.9),
             ),
-            text=high_risk_df['predicted_class'].map(lambda x: f"⚠️ {class_names.get(x, 'High Risk')}"),
-            textposition='top center',
-            textfont=dict(size=12, color="white"),
-            name='Alert Zones (Mag > 6.0)',
-            hoverinfo='none'
-        ))
-
-    # 3. Add Live Quakes (Part C)
-    live_df = fetch_live_quakes()
-    if not live_df.empty:
-        fig.add_trace(go.Scattermapbox(
-            lat=live_df['lat'],
-            lon=live_df['lon'],
-            mode='markers',
-            marker=go.scattermapbox.Marker(
-                size=10,
-                color='cyan',
-                opacity=0.9
+            text=pred_df.apply(
+                lambda r: (
+                    f"<b>Cell:</b> {r['cell_id']}"
+                    f"<br><b>Risk:</b> {float(r['risk_prob']):.2f}"
+                    f"<br><b>Predicted quake:</b> {int(r['predicted_quake'])}"
+                    f"<br><b>Magnitude:</b> {class_label(int(r['predicted_class']))}"
+                ),
+                axis=1,
             ),
-            text=live_df.apply(lambda r: f"<b>LIVE QUAKE</b><br>Mag: {r['mag']}<br>Time: {r['time']}", axis=1),
-            name='Live Quakes (Last 48h)',
-            hoverinfo='text'
-        ))
-
-    # Dark Mode Premium Layout
-    fig.update_layout(
-        template="plotly_dark",
-        mapbox_style="carto-darkmatter", # Sleek dark map
-        mapbox=dict(
-            center=go.layout.mapbox.Center(lat=20, lon=0),
-            zoom=1.5
-        ),
-        margin={"r":0,"t":60,"l":0,"b":0},
-        title=dict(
-            text="🌍 Global Earthquake Risk & Live Monitoring",
-            font=dict(size=24, color="white"),
-            x=0.05
-        ),
-        legend=dict(
-            yanchor="top",
-            y=0.99,
-            xanchor="left",
-            x=0.01,
-            bgcolor="rgba(0,0,0,0.5)"
+            hoverinfo="text",
+            name="Predicted Risk Zones",
         )
     )
 
-    # Save to HTML
-    out_file = "earthquake_dashboard.html"
-    fig.write_html(out_file)
-    print(f"Dashboard saved as {out_file}")
-    
+    # 2) Alert overlay (predicted_quake == 1)
+    alerts = pred_df[pred_df["predicted_quake"] == 1]
+    if not alerts.empty:
+        fig.add_trace(
+            go.Scattermapbox(
+                lat=alerts["lat"],
+                lon=alerts["lon"],
+                mode="markers+text",
+                marker=go.scattermapbox.Marker(size=12, color="white"),
+                text=alerts["predicted_class"].apply(lambda c: f"⚠️ {class_label(int(c))}"),
+                textposition="top center",
+                hoverinfo="none",
+                name="Alert Zones",
+            )
+        )
+
+    # 3) Live quakes overlay
+    if live_df is not None and not live_df.empty:
+        fig.add_trace(
+            go.Scattermapbox(
+                lat=live_df["lat"],
+                lon=live_df["lon"],
+                mode="markers",
+                marker=go.scattermapbox.Marker(size=9, color="cyan", opacity=0.9),
+                text=live_df.apply(
+                    lambda r: f"<b>LIVE QUAKE</b><br>Mag: {r['mag']}<br>Time: {r['time']}",
+                    axis=1,
+                ),
+                hoverinfo="text",
+                name="Live Quakes (24h)",
+            )
+        )
+
+    # Layout (dark premium)
+    fig.update_layout(
+        template="plotly_dark",
+        mapbox_style="carto-darkmatter",
+        mapbox=dict(center=dict(lat=20, lon=0), zoom=1.5),
+        margin=dict(r=0, t=60, l=0, b=0),
+        title=dict(text="🌍 Global Earthquake Risk & Live Monitoring (Standalone)", x=0.05),
+        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(0,0,0,0.5)"),
+    )
+
+    return fig
+
+
+def main() -> None:
+    if not PRED_FILE.exists():
+        raise FileNotFoundError(
+            f"{PRED_FILE} not found. Run pipeline/08_predict_latest_month.py first."
+        )
+
+    OUT_HTML.parent.mkdir(parents=True, exist_ok=True)
+
+    pred_df = pd.read_csv(PRED_FILE)
+    live_df = fetch_live_quakes_usgs(min_mag=4.0)
+
+    fig = build_map(pred_df, live_df)
+    fig.write_html(OUT_HTML)
+
+    print("✅ Standalone dashboard saved to:", OUT_HTML)
+
+
 if __name__ == "__main__":
-    pred_file = "predictions_latest_month.csv"
-    
-    # Run Alerts Logic
-    df = pd.read_csv(pred_file)
-    generate_alerts(df, threshold=0.5)
-    
-    # Create Dashboard
-    create_dashboard(pred_file)
+    main()
