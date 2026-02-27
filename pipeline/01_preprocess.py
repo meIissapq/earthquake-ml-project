@@ -1,33 +1,43 @@
+from __future__ import annotations
+
 from pathlib import Path
 import pandas as pd
 
-BASE_DIR = Path(__file__).resolve().parents[1]
-DATA_DIR = BASE_DIR / "data"
-RAW_DIR = DATA_DIR / "raw"
-PROCESSED_DIR = DATA_DIR / "processed"
 
-PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+RAW_FILE = Path("data/raw/earthquake_data_tsunami.csv")
+OUT_FILE = Path("data/processed/earthquakes_clean_monthly.csv")
 
-def main():
-    dst = PROCESSED_DIR / "earthquakes_clean_monthly.csv"
 
-    df = pd.read_csv(RAW_DIR / "earthquake_data_tsunami.csv")
+def main() -> None:
+    OUT_FILE.parent.mkdir(parents=True, exist_ok=True)
 
-    # Build month_date from Year + Month
-    df['month_date'] =  pd.to_datetime(df["Year"].astype(str) + "-" + df["Month"].astype(str) + "-01")
+    if not RAW_FILE.exists():
+        raise FileNotFoundError(f"Missing {RAW_FILE}. Run 00_download_data.py first.")
 
-    # Keep only needed columns
-    cols = ["month_date", "latitude", "longitude", "magnitude", "depth", "sig", "mmi", "cdi"]
-    df_clean = df[cols].copy()
+    df = pd.read_csv(RAW_FILE)
 
-    # Sort
-    df_clean = df_clean.sort_values("month_date").reset_index(drop=True)
+    # Defensive column checks
+    required = ["Year", "Month", "latitude", "longitude", "magnitude", "depth"]
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        raise ValueError(f"Dataset missing required columns: {missing}")
 
-    df_clean.to_csv(dst, index=False)
+    df["month_date"] = pd.to_datetime(
+        df["Year"].astype(str) + "-" + df["Month"].astype(str) + "-01",
+        errors="coerce",
+    )
 
-    print(f"Saved: {dst}")
-    print(f"Rows: {len(df_clean)}, Cols: {len(df_clean.columns)}")
+    cols = ["month_date", "latitude", "longitude", "magnitude", "depth"]
+    # Optional columns if present
+    for c in ["sig", "mmi", "cdi"]:
+        if c in df.columns:
+            cols.append(c)
+
+    out = df[cols].dropna(subset=["month_date", "latitude", "longitude", "magnitude", "depth"]).copy()
+    out.to_csv(OUT_FILE, index=False)
+
+    print("Saved:", OUT_FILE, "| rows:", len(out))
+
 
 if __name__ == "__main__":
     main()
-
