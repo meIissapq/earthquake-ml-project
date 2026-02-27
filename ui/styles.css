@@ -86,47 +86,6 @@ main {
     height: 100%;
 }
 
-/* Glass Panels */
-.overlay-panel {
-    position: absolute;
-    background: var(--glass-bg);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--radius-md);
-    padding: var(--spacing-md);
-    z-index: 5;
-    pointer-events: auto;
-}
-
-.legend-panel {
-    bottom: var(--spacing-lg);
-    left: var(--spacing-lg);
-    min-width: 200px;
-}
-
-.legend-panel h3 {
-    font-size: 0.9rem;
-    margin-bottom: 10px;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-
-.legend-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 8px;
-    font-size: 0.85rem;
-}
-
-.dot {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-}
-
 /* Custom Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
